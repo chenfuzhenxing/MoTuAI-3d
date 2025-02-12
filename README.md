@@ -26,8 +26,8 @@
 ### 2. 下载与安装
 1. 克隆项目代码：
    ```sh
-   git clone https://github.com/your-repo/motu-3d.git
-   cd motu-3d
+   git clone https://gitee.com/chenfu_1/mtai3d.git
+   cd mtai3d
    ```
 2. 安装依赖：
    ```sh
