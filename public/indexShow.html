@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>摹图3D模型</title>
+    <!-- 添加 Three.js 相关库 -->
+    <!-- 将 CDN 引用改为本地文件 -->
+    <script src="./public/js/three/three.min.js"></script>
+    <script src="./public/js/three/OrbitControls.js"></script>
+    <script src="./public/js/three/GLTFLoader.js"></script>
+    <script src="./public/js/three/OBJLoader.js"></script>
+    <script src="./public/js/three/MTLLoader.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #000;
+            overflow: hidden;
+        }
+
+        #container {
+            width: 100%;
+            height: 100%;
+        }
+
+        .controls {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .controls button {
+            padding: 10px 20px;
+            background-color: #444;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .controls button:hover {
+            background-color: #666;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="container"></div>
+    <div class="controls">
+        <button id="toggle-rotation">自动旋转</button>
+        <button id="download-glb">下载模型</button>
+    </div>
+
+    <script>
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x303030);
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.getElementById('container').appendChild(renderer.domElement);
+
+        // 设置渲染器的色调映射和曝光度
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.5;
+
+        // 初始化 OrbitControls
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.minDistance = 1;
+        controls.maxDistance = 10;
+
+        // 加载 GLB 模型
+        const loader = new THREE.GLTFLoader();
+        let model; // 全局变量模型
+        let isRotating = true; // 自动旋转开关
+        let url = localStorage.glbUrl;
+        loader.load(
+            url,
+            (gltf) => {
+                model = gltf.scene;
+
+
+                // 替换所有网格的材质为 MeshBasicMaterial，实现不受光照影响的“自发光”效果
+                model.traverse((node) => {
+                    if (node.isMesh) {
+                        const originalMat = node.material;
+                        // 如果模型使用贴图，则在新材质中保留贴图
+                        if (originalMat.map) {
+                            node.material = new THREE.MeshBasicMaterial({
+                                map: originalMat.map,
+                                color: originalMat.color,
+                                // 如果原材质中有透明度、透明度测试等属性，可根据需要补充
+                                transparent: originalMat.transparent,
+                                opacity: originalMat.opacity
+                            });
+                        } else {
+                            node.material = new THREE.MeshBasicMaterial({
+                                color: originalMat.color
+                            });
+                        }
+                    }
+                });
+
+
+                // 调整模型
+                model.scale.set(1, 1, 1); // 调整缩放
+                model.position.set(0, 0, 0); // 设置模型位置
+
+                // 优化模型材质
+                model.traverse((node) => {
+                    if (node.isMesh) {
+                        if (node.material.map) {
+                            // 设置纹理过滤方式，提高纹理质量
+                            node.material.map.minFilter = THREE.LinearFilter;
+                            node.material.map.magFilter = THREE.LinearFilter;
+                            node.material.map.anisotropy = renderer.capabilities.getMaxAnisotropy();
+                        }
+                    }
+                });
+
+                // 获取模型边界并调整相机
+                const box = new THREE.Box3().setFromObject(model);
+                const size = box.getSize(new THREE.Vector3());
+                const center = box.getCenter(new THREE.Vector3());
+                camera.position.set(center.x, center.y, center.z + size.z * 3);
+                camera.lookAt(center);
+
+                scene.add(model);
+                animate();
+            },
+            (progress) => {
+                console.log(`Loading progress: ${(progress.loaded / progress.total) * 100}%`);
+            },
+            (error) => {
+                console.error('Error loading model:', error);
+            }
+        );
+
+        // 动画循环
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // 自动旋转模型
+            if (model && isRotating) {
+                model.rotation.y += 0.01; // 控制旋转速度
+            }
+
+            controls.update(); // 更新 OrbitControls
+            renderer.render(scene, camera);
+        }
+
+        // 窗口大小自适应
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // 自动旋转开关按钮
+        document.getElementById('toggle-rotation').addEventListener('click', () => {
+            isRotating = !isRotating; // 切换旋转状态
+        });
+
+        // 下载 GLB 文件按钮
+        document.getElementById('download-glb').addEventListener('click', () => {
+            const link = document.createElement('a');
+            link.href = url; // 指向 GLB 文件的路径
+            link.download = 'model.glb'; // 下载文件名
+            link.click();
+        });
+    </script>
+</body>
+
+</html>
+
